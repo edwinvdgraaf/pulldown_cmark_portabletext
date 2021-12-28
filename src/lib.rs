@@ -67,7 +67,7 @@ pub mod portabletext {
         pub fn default(style: String) -> Self {
             Self {
                 _type: "block".to_string(),
-                style: style,
+                style,
                 children: Vec::with_capacity(0),
                 mark_defs: Vec::with_capacity(0),
                 asset: None,
@@ -160,7 +160,7 @@ pub mod portabletext {
         fn consume_inner(&mut self) -> String {
             let mut nest = 0;
             let mut buffer = String::new();
-            while let Some(event) = self.iter.next() {
+            for event in &mut self.iter {
                 match event {
                     Start(_) => nest += 1,
                     End(_) => {
@@ -173,7 +173,7 @@ pub mod portabletext {
                         buffer.push_str(&text.to_string());
                     }
                     SoftBreak | HardBreak | Rule => {
-                        buffer.push_str(" ");
+                        buffer.push(' ');
                     }
                     _ => {}
                 }
@@ -259,7 +259,7 @@ pub mod portabletext {
                     last_block.children.push(SpanNode {
                         _type: "image-alt".to_owned(),
                         marks: Vec::with_capacity(0),
-                        text: alt.to_string(),
+                        text: alt,
                     });
 
                     Ok(())
@@ -298,9 +298,9 @@ pub mod portabletext {
             let marks: Vec<Decorators> = self.active_markers.to_vec();
             let current_node = self.last_block();
             current_node.children.push(SpanNode {
-                _type: _type,
+                _type,
                 text: text.to_string(),
-                marks: marks,
+                marks,
             });
 
             Ok(())
