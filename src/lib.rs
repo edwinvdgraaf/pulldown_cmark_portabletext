@@ -3,17 +3,24 @@
 // remove the _ catch of pattern match
 
 pub mod portabletext {
+    use std::io;
+
     use pulldown_cmark::Event::*;
     use pulldown_cmark::{CodeBlockKind, CowStr, Event, Tag};
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
-    use std::io;
 
     #[derive(Debug, PartialEq, Clone)]
     pub struct MarkDef {
         pub _key: String,
         pub _type: String,
         pub href: String,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    pub struct Asset {
+        pub _ref: String,
+        pub src: String,
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -51,8 +58,11 @@ pub mod portabletext {
         // list items
         pub level: Option<usize>,
         pub list_item: Option<ListItemType>,
+
+        pub asset: Option<Asset>,
     }
 
+    // TODO: split this into multiple types
     impl BlockNode {
         pub fn default(style: String) -> Self {
             Self {
@@ -60,6 +70,7 @@ pub mod portabletext {
                 style: style,
                 children: Vec::with_capacity(0),
                 mark_defs: Vec::with_capacity(0),
+                asset: None,
                 level: None,
                 list_item: None,
             }
@@ -73,6 +84,7 @@ pub mod portabletext {
                 list_item: Some(list_item),
                 children: Vec::with_capacity(2),
                 mark_defs: Vec::with_capacity(0),
+                asset: None,
             }
         }
 
@@ -145,6 +157,30 @@ pub mod portabletext {
             Ok(())
         }
 
+        fn consume_inner(&mut self) -> String {
+            let mut nest = 0;
+            let mut buffer = String::new();
+            while let Some(event) = self.iter.next() {
+                match event {
+                    Start(_) => nest += 1,
+                    End(_) => {
+                        if nest == 0 {
+                            break;
+                        }
+                        nest -= 1;
+                    }
+                    Html(text) | Code(text) | Text(text) => {
+                        buffer.push_str(&text.to_string());
+                    }
+                    SoftBreak | HardBreak | Rule => {
+                        buffer.push_str(" ");
+                    }
+                    _ => {}
+                }
+            }
+            buffer.to_owned()
+        }
+
         /// Writes the start of an HTML tag.
         fn start_tag(&mut self, tag: Tag<'a>) -> io::Result<()> {
             match tag {
@@ -195,8 +231,38 @@ pub mod portabletext {
                     self.add_mark_def(mark_def).unwrap();
                     self.mark_start(Decorators::LinkReference(key))
                 }
-                Tag::Image(_image_type, image_href, _image_title) => {
-                    self.write(BlockNode::default("image".to_string()))
+                Tag::Image(_image_type, image_href, title) => {
+                    let key: String = thread_rng()
+                        .sample_iter(&Alphanumeric)
+                        .take(12)
+                        .map(char::from)
+                        .collect();
+
+                    let asset = Asset {
+                        _ref: key,
+                        src: image_href.to_string(),
+                    };
+
+                    let alt = self.consume_inner();
+                    let last_block = self.last_block();
+                    last_block._type = "image".to_owned();
+                    last_block.asset = Some(asset);
+
+                    if !title.is_empty() {
+                        last_block.children.push(SpanNode {
+                            _type: "image-title".to_owned(),
+                            marks: Vec::with_capacity(0),
+                            text: title.to_string(),
+                        });
+                    }
+
+                    last_block.children.push(SpanNode {
+                        _type: "image-alt".to_owned(),
+                        marks: Vec::with_capacity(0),
+                        text: alt.to_string(),
+                    });
+
+                    Ok(())
                 }
                 Tag::Strong => self.mark_start(Decorators::Strong),
                 Tag::Emphasis => self.mark_start(Decorators::Emphasis),
@@ -225,10 +291,14 @@ pub mod portabletext {
         }
 
         fn add_span(&mut self, text: CowStr<'a>) -> io::Result<()> {
+            self.add_span_with_type(text, "span".to_owned())
+        }
+
+        fn add_span_with_type(&mut self, text: CowStr<'a>, _type: String) -> io::Result<()> {
             let marks: Vec<Decorators> = self.active_markers.to_vec();
             let current_node = self.last_block();
             current_node.children.push(SpanNode {
-                _type: "span".to_string(),
+                _type: _type,
                 text: text.to_string(),
                 marks: marks,
             });
@@ -600,65 +670,42 @@ mod tests {
         let mut portabletext_output = vec![];
         portabletext::push_portabletext(&mut portabletext_output, parser);
 
-        let mark_def = portabletext_output
-            .get(0)
-            .unwrap()
-            .mark_defs
-            .get(0)
-            .unwrap();
-        // let children = vec![
-        //     SpanNode {
-        //         _type: "span".to_string(),
-        //         text: "This is a ".to_string(),
-        //         marks: Vec::with_capacity(0),
-        //     },
-        //     SpanNode {
-        //         _type: "span".to_string(),
-        //         text: "a link".to_string(),
-        //         marks: vec![
-        //             Decorators::Emphasis,
-        //             Decorators::LinkReference(mark_def._key.to_owned()),
-        //         ],
-        //     },
-        // ];
+        let block = portabletext_output.get(0).unwrap();
+        let asset = block.asset.as_ref().unwrap();
 
-        assert_eq!("https://github.com", mark_def.href);
-        assert_eq!("image", mark_def._type);
-        // assert_eq!(children, portabletext_output.get(0).unwrap().children);
+        assert_eq!("image", block._type);
+        assert_eq!("/assets/images/san-juan-mountains.jpg", asset.src);
     }
 
-    // #[test]
-    // fn linking_images() {
-    //     let markdown_input = "[![An old rock in the desert](/assets/images/shiprock.jpg \"Shiprock, New Mexico by Beau Rogers\")](https://www.flickr.com/photos/beaurogers/31833779864/in/photolist-Qv3rFw-34mt9F-a9Cmfy-5Ha3Zi-9msKdv-o3hgjr-hWpUte-4WMsJ1-KUQ8N-deshUb-vssBD-6CQci6-8AFCiD-zsJWT-nNfsgB-dPDwZJ-bn9JGn-5HtSXY-6CUhAL-a4UTXB-ugPum-KUPSo-fBLNm-6CUmpy-4WMsc9-8a7D3T-83KJev-6CQ2bK-nNusHJ-a78rQH-nw3NvT-7aq2qf-8wwBso-3nNceh-ugSKP-4mh4kh-bbeeqH-a7biME-q3PtTf-brFpgb-cg38zw-bXMZc-nJPELD-f58Lmo-bXMYG-bz8AAi-bxNtNT-bXMYi-bXMY6-bXMYv)";
+    #[test]
+    fn linking_images() {
+        let markdown_input = "[![An old rock in the desert](/assets/images/shiprock.jpg \"Shiprock, New Mexico by Beau Rogers\")](https://www.flickr.com/photos/beaurogers/31833779864/in/photolist-Qv3rFw-34mt9F-a9Cmfy-5Ha3Zi-9msKdv-o3hgjr-hWpUte-4WMsJ1-KUQ8N-deshUb-vssBD-6CQci6-8AFCiD-zsJWT-nNfsgB-dPDwZJ-bn9JGn-5HtSXY-6CUhAL-a4UTXB-ugPum-KUPSo-fBLNm-6CUmpy-4WMsc9-8a7D3T-83KJev-6CQ2bK-nNusHJ-a78rQH-nw3NvT-7aq2qf-8wwBso-3nNceh-ugSKP-4mh4kh-bbeeqH-a7biME-q3PtTf-brFpgb-cg38zw-bXMZc-nJPELD-f58Lmo-bXMYG-bz8AAi-bxNtNT-bXMYi-bXMY6-bXMYv)";
 
-    //     let parser = Parser::new(markdown_input);
-    //     let mut portabletext_output = vec![];
-    //     portabletext::push_portabletext(&mut portabletext_output, parser);
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
 
-    //     let mark_def = portabletext_output
-    //         .get(0)
-    //         .unwrap()
-    //         .mark_defs
-    //         .get(0)
-    //         .unwrap();
-    //     let children = vec![
-    //         SpanNode {
-    //             _type: "span".to_string(),
-    //             text: "This is a ".to_string(),
-    //             marks: Vec::with_capacity(0),
-    //         },
-    //         SpanNode {
-    //             _type: "span".to_string(),
-    //             text: "a link".to_string(),
-    //             marks: vec![
-    //                 Decorators::Emphasis,
-    //                 Decorators::LinkReference(mark_def._key.to_owned()),
-    //             ],
-    //         },
-    //     ];
+        let block = portabletext_output.get(0).unwrap();
+        let asset = block.asset.as_ref().unwrap();
 
-    //     assert_eq!("https://github.com", mark_def.href);
-    //     assert_eq!("link", mark_def._type);
-    //     assert_eq!(children, portabletext_output.get(0).unwrap().children);
-    // }
+        assert_eq!("image", block._type);
+        assert_eq!("/assets/images/shiprock.jpg", asset.src);
+    }
+
+    #[test]
+    fn running_images() {
+        let markdown_input = "A running text that then links: [![An old rock in the desert](/assets/images/shiprock.jpg \"Shiprock, New Mexico by Beau Rogers\")](https://www.flickr.com/photos/beaurogers/31833779864/in/photolist-Qv3rFw-34mt9F-a9Cmfy-5Ha3Zi-9msKdv-o3hgjr-hWpUte-4WMsJ1-KUQ8N-deshUb-vssBD-6CQci6-8AFCiD-zsJWT-nNfsgB-dPDwZJ-bn9JGn-5HtSXY-6CUhAL-a4UTXB-ugPum-KUPSo-fBLNm-6CUmpy-4WMsc9-8a7D3T-83KJev-6CQ2bK-nNusHJ-a78rQH-nw3NvT-7aq2qf-8wwBso-3nNceh-ugSKP-4mh4kh-bbeeqH-a7biME-q3PtTf-brFpgb-cg38zw-bXMZc-nJPELD-f58Lmo-bXMYG-bz8AAi-bxNtNT-bXMYi-bXMY6-bXMYv) and continues here";
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        assert_eq!(1, portabletext_output.len());
+
+        let image_block = portabletext_output.get(0).unwrap();
+        let asset = image_block.asset.as_ref().unwrap();
+
+        assert_eq!("image", image_block._type);
+        assert_eq!("/assets/images/shiprock.jpg", asset.src);
+    }
 }
