@@ -1,7 +1,3 @@
-// TODOS:
-// remove .unwraps() to avoid panics
-// remove the _ catch of pattern match
-
 pub mod portabletext {
     use std::io;
 
@@ -95,23 +91,16 @@ pub mod portabletext {
     }
 
     struct PortabletextWriter<'a, I> {
-        /// Iterator supplying events.
         iter: I,
-        /// Writer to write to.
         writer: &'a mut Vec<BlockNode>,
-        /// Whether or not the last write wrote a newline.
         open_block: bool,
         active_list_item: Vec<ListItemType>,
         list_item_level: usize,
-        active_markers: Vec<Decorators>, // table_state: TableState,
-                                         // table_alignments: Vec<Alignment>,
-                                         // table_cell_index: usize,
-                                         // numbers: HashMap<CowStr<'a>, usize>
+        active_markers: Vec<Decorators>,
     }
     impl<'a, I> PortabletextWriter<'a, I>
     where
         I: Iterator<Item = Event<'a>>,
-        // W: ObjWrite,
     {
         fn new(iter: I, writer: &'a mut Vec<BlockNode>) -> Self {
             Self {
@@ -119,10 +108,6 @@ pub mod portabletext {
                 writer,
                 open_block: false,
                 active_markers: Vec::with_capacity(3),
-                // table_state: TableState::Head,
-                // table_alignments: vec![],
-                // table_cell_index: 0,
-                // numbers: HashMap::new(),
                 active_list_item: Vec::with_capacity(5),
                 list_item_level: 0,
             }
@@ -139,7 +124,6 @@ pub mod portabletext {
 
         pub fn run(mut self) -> io::Result<()> {
             while let Some(event) = self.iter.next() {
-                println!("{:?}", event);
                 match event {
                     Start(tag) => {
                         self.start_tag(tag)?;
@@ -694,6 +678,7 @@ mod tests {
 
     #[test]
     fn running_images() {
+        // It's a little tradeoff - in general in markdown all images are inline
         let markdown_input = "A running text that then links: [![An old rock in the desert](/assets/images/shiprock.jpg \"Shiprock, New Mexico by Beau Rogers\")](https://www.flickr.com/photos/beaurogers/31833779864/in/photolist-Qv3rFw-34mt9F-a9Cmfy-5Ha3Zi-9msKdv-o3hgjr-hWpUte-4WMsJ1-KUQ8N-deshUb-vssBD-6CQci6-8AFCiD-zsJWT-nNfsgB-dPDwZJ-bn9JGn-5HtSXY-6CUhAL-a4UTXB-ugPum-KUPSo-fBLNm-6CUmpy-4WMsc9-8a7D3T-83KJev-6CQ2bK-nNusHJ-a78rQH-nw3NvT-7aq2qf-8wwBso-3nNceh-ugSKP-4mh4kh-bbeeqH-a7biME-q3PtTf-brFpgb-cg38zw-bXMZc-nJPELD-f58Lmo-bXMYG-bz8AAi-bxNtNT-bXMYi-bXMY6-bXMYv) and continues here";
 
         let parser = Parser::new(markdown_input);
