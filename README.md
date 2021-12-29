@@ -4,7 +4,7 @@ A first attempt to make structure out of markdown and make it more portable. Esp
 
 ## Example
 
-```
+```rust
 use pulldown_cmark_portabletext::portabletext;
 use pulldown_cmark_portabletext::portabletext::{BlockNode, Decorators, ListItemType, SpanNode};
 use pulldown_cmark::{Options, Parser};
