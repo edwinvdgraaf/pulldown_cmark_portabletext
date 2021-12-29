@@ -1,3 +1,7 @@
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDoctests;
+
 pub mod portabletext {
     use std::io;
 
@@ -329,48 +333,7 @@ pub mod portabletext {
 mod tests {
     use crate::portabletext;
     use crate::portabletext::{BlockNode, Decorators, ListItemType, SpanNode};
-    use pulldown_cmark::{Options, Parser};
-
-    #[test]
-    fn it_works() {
-        let markdown_input = "Hello world, this is a ~~complicated~~ *very simple* example.";
-
-        let mut options = Options::empty();
-        options.insert(Options::ENABLE_STRIKETHROUGH);
-        let parser = Parser::new_ext(markdown_input, options);
-
-        let mut portabletext_output = vec![];
-        portabletext::push_portabletext(&mut portabletext_output, parser);
-
-        let first_node = BlockNode::default("normal".to_string()).with_children(vec![
-            SpanNode {
-                _type: "span".to_string(),
-                text: "Hello world, this is a ".to_string(),
-                marks: Vec::with_capacity(0),
-            },
-            SpanNode {
-                _type: "span".to_string(),
-                text: "complicated".to_string(),
-                marks: vec![Decorators::Strike],
-            },
-            SpanNode {
-                _type: "span".to_string(),
-                text: " ".to_string(),
-                marks: Vec::with_capacity(0),
-            },
-            SpanNode {
-                _type: "span".to_string(),
-                text: "very simple".to_string(),
-                marks: vec![Decorators::Emphasis],
-            },
-            SpanNode {
-                _type: "span".to_string(),
-                text: " example.".to_string(),
-                marks: Vec::with_capacity(0),
-            },
-        ]);
-        assert_eq!(&first_node, portabletext_output.get(0).unwrap());
-    }
+    use pulldown_cmark::Parser;
 
     #[test]
     fn it_supports_heading() {
