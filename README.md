@@ -6,7 +6,7 @@ A first attempt to make structure out of markdown and make it more portable. Esp
 
 ```rust
 use pulldown_cmark_portabletext::portabletext;
-use pulldown_cmark_portabletext::portabletext::{BlockNode, Decorators, ListItemType, SpanNode};
+use pulldown_cmark_portabletext::portabletext::{BlockNode, Decorators, SpanNode};
 use pulldown_cmark::{Options, Parser};
 
 let markdown_input = "Hello world, this is a ~~complicated~~ *very simple* example.";
