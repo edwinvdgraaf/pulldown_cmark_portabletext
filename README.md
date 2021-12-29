@@ -18,34 +18,43 @@ let parser = Parser::new_ext(markdown_input, options);
 let mut portabletext_output = vec![];
 portabletext::push_portabletext(&mut portabletext_output, parser);
 
-let first_node = BlockNode::default("normal".to_string()).with_children(vec![
+let expected_output = BlockNode { 
+  _type: "block".to_owned(),
+  style: "normal".to_owned(),
+  asset: None,
+  level: None,
+  list_item: None,
+  mark_defs: vec![],
+  children: vec![
     SpanNode {
-        _type: "span".to_string(),
-        text: "Hello world, this is a ".to_string(),
-        marks: Vec::with_capacity(0),
+        _type: "span".to_owned(),
+        text: "Hello world, this is a ".to_owned(),
+        marks: vec![],
     },
     SpanNode {
-        _type: "span".to_string(),
-        text: "complicated".to_string(),
+        _type: "span".to_owned(),
+        text: "complicated".to_owned(),
         marks: vec![Decorators::Strike],
     },
     SpanNode {
-        _type: "span".to_string(),
-        text: " ".to_string(),
-        marks: Vec::with_capacity(0),
+        _type: "span".to_owned(),
+        text: " ".to_owned(),
+        marks: vec![],
     },
     SpanNode {
-        _type: "span".to_string(),
-        text: "very simple".to_string(),
+        _type: "span".to_owned(),
+        text: "very simple".to_owned(),
         marks: vec![Decorators::Emphasis],
     },
     SpanNode {
-        _type: "span".to_string(),
-        text: " example.".to_string(),
-        marks: Vec::with_capacity(0),
+        _type: "span".to_owned(),
+        text: " example.".to_owned(),
+        marks: vec![],
     },
-]);
-assert_eq!(&first_node, portabletext_output.get(0).unwrap());
+  ]
+};
+
+assert_eq!(&expected_output, portabletext_output.get(0).unwrap());
 ```
 
 ## References
