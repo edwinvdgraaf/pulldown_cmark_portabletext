@@ -9,8 +9,11 @@ pub mod portabletext {
     use pulldown_cmark::{CodeBlockKind, CowStr, Event, Tag};
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
+    #[cfg(feature = "serde_serialization")]
+    use serde::Serialize;
 
     #[derive(Debug, PartialEq, Clone)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     pub struct MarkDef {
         pub _key: String,
         pub _type: String,
@@ -18,12 +21,14 @@ pub mod portabletext {
     }
 
     #[derive(Debug, PartialEq, Clone)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     pub struct Asset {
         pub _ref: String,
         pub src: String,
     }
 
     #[derive(Debug, PartialEq, Clone)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     pub enum Decorators {
         Emphasis,
         Strong,
@@ -34,18 +39,21 @@ pub mod portabletext {
     }
 
     #[derive(Debug, PartialEq, Clone, Copy)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     pub enum ListItemType {
         Bullit,
         Numbered,
     }
 
     #[derive(Debug, PartialEq)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     pub struct SpanNode {
         pub _type: String,
         pub text: String,
         pub marks: Vec<Decorators>,
     }
     #[derive(Debug, PartialEq)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     pub struct BlockNode {
         pub _type: String,
         pub style: String,
@@ -334,7 +342,8 @@ mod tests {
     use crate::portabletext;
     use crate::portabletext::{BlockNode, Decorators, ListItemType, SpanNode};
     use pulldown_cmark::Parser;
-
+    #[cfg(feature = "serde_serialization")]
+    use serde_json;
     #[test]
     fn it_supports_heading() {
         let markdown_input = "# Hey";
@@ -655,5 +664,19 @@ mod tests {
 
         assert_eq!("image", image_block._type);
         assert_eq!("/assets/images/shiprock.jpg", asset.src);
+    }
+
+    #[test]
+    #[cfg(feature = "serde_serialization")]
+    fn serialization() {
+        let markdown_input = "A running text that then links";
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        let j = serde_json::to_string(&portabletext_output).unwrap();
+
+        assert_eq!(j, "[{\"_type\":\"block\",\"style\":\"normal\",\"children\":[{\"_type\":\"span\",\"text\":\"A running text that then links\",\"marks\":[]}],\"mark_defs\":[],\"level\":null,\"list_item\":null,\"asset\":null}]");
     }
 }
