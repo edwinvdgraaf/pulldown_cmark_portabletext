@@ -142,9 +142,24 @@ pub mod portabletext {
                         self.end_tag(tag)?;
                     }
                     Text(text) => {
-                        self.add_span(text)?;
+                        let no_marks = self.active_markers.to_vec().len() == 0;
+                        if let Some(last_span) = self.last_span() {
+                            if last_span.marks.len() == 0 && no_marks {
+                                self.add_text(text)?;
+                            } else {
+                                self.add_span(text)?;
+                            }
+                        } else {
+                            self.add_span(text)?;
+                        }
                     }
-                    Code(_) | Html(_) | FootnoteReference(_) | Rule | SoftBreak | HardBreak
+
+                    SoftBreak => {
+                        if let Some(last_span) = self.last_span() {
+                            last_span.text += " ";
+                        }
+                    }
+                    Code(_) | Html(_) | FootnoteReference(_) | Rule | HardBreak
                     | TaskListMarker(_) => {}
                 }
             }
@@ -238,23 +253,22 @@ pub mod portabletext {
                     };
 
                     let alt = self.consume_inner();
-                    let last_block = self.last_block();
-                    last_block._type = "image".to_owned();
-                    last_block.asset = Some(asset);
-
-                    if !title.is_empty() {
+                    if let Some(last_block) = self.last_block() {
+                        last_block._type = "image".to_owned();
+                        last_block.asset = Some(asset);
+                        if !title.is_empty() {
+                            last_block.children.push(SpanNode {
+                                _type: "image-title".to_owned(),
+                                marks: Vec::with_capacity(0),
+                                text: title.to_string(),
+                            });
+                        }
                         last_block.children.push(SpanNode {
-                            _type: "image-title".to_owned(),
+                            _type: "image-alt".to_owned(),
                             marks: vec![],
-                            text: title.to_string(),
+                            text: alt,
                         });
                     }
-
-                    last_block.children.push(SpanNode {
-                        _type: "image-alt".to_owned(),
-                        marks: vec![],
-                        text: alt,
-                    });
 
                     Ok(())
                 }
@@ -284,18 +298,25 @@ pub mod portabletext {
             }
         }
 
+        fn add_text(&mut self, text: CowStr<'a>) -> io::Result<()> {
+            if let Some(last_span) = self.last_span() {
+                last_span.text += &text.to_string();
+            }
+            Ok(())
+        }
         fn add_span(&mut self, text: CowStr<'a>) -> io::Result<()> {
             self.add_span_with_type(text, "span".to_owned())
         }
 
         fn add_span_with_type(&mut self, text: CowStr<'a>, _type: String) -> io::Result<()> {
             let marks: Vec<Decorators> = self.active_markers.to_vec();
-            let current_node = self.last_block();
-            current_node.children.push(SpanNode {
-                _type,
-                text: text.to_string(),
-                marks,
-            });
+            if let Some(current_node) = self.last_block() {
+                current_node.children.push(SpanNode {
+                    _type,
+                    text: text.to_string(),
+                    marks,
+                });
+            }
 
             Ok(())
         }
@@ -305,13 +326,29 @@ pub mod portabletext {
             Ok(())
         }
 
-        fn last_block(&mut self) -> &mut BlockNode {
+        fn last_block(&mut self) -> Option<&mut BlockNode> {
             let length = self.writer.len();
-            self.writer.get_mut(length - 1).unwrap()
+            self.writer.get_mut(length - 1)
+        }
+
+        fn last_span(&mut self) -> Option<&mut SpanNode> {
+            self.last_block()
+                .map(|last_block| {
+                    let last_block_children_length = last_block.children.len();
+
+                    if last_block_children_length == 0 {
+                        return None;
+                    }
+
+                    last_block.children.get_mut(last_block_children_length - 1)
+                })
+                .flatten()
         }
 
         fn add_mark_def(&mut self, mark_def: MarkDef) -> io::Result<()> {
-            self.last_block().mark_defs.push(mark_def);
+            if let Some(last_block) = self.last_block() {
+                last_block.mark_defs.push(mark_def)
+            }
             Ok(())
         }
 
@@ -404,6 +441,37 @@ mod tests {
     }
 
     #[test]
+    fn works_for_multiple_blocks() {
+        let markdown_input = r#"
+Experiment with cazy stuff, but get the basics right. But what are these basics, 
+that is an interesting question. What for one can feel like such a no brainer, can be in another eyes seem like a total waste. 
+
+## All endings with beginings
+
+> Like the legend of the phoenix
+> All ends with beginnings
+> What keeps the planet spinning (uh)
+> The force of love beginning
+>
+> _Pharrel Williams_
+        "#;
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        assert_eq!(
+            &BlockNode::default("h2".to_string()).with_children(vec![SpanNode {
+                _type: "span".to_string(),
+                text: "All endings with beginings".to_string(),
+                marks: vec![],
+            }]),
+            portabletext_output.get(1).unwrap()
+        );
+        assert_eq!(4, portabletext_output.len());
+    }
+
+    #[test]
     fn it_works_heading_three_with_bold() {
         let markdown_input = "### Hey __strong__";
 
@@ -440,6 +508,47 @@ mod tests {
             text: "strong".to_string(),
             marks: vec![Decorators::Strong],
         }]);
+
+        assert_eq!(&first_node, portabletext_output.get(0).unwrap());
+    }
+
+    #[test]
+    fn support_newline_in_blocks() {
+        let markdown_input = "new line can have multiple\nnewlines";
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        let first_node = BlockNode::default("normal".to_string()).with_children(vec![SpanNode {
+            _type: "span".to_string(),
+            text: "new line can have multiple newlines".to_string(),
+            marks: vec![],
+        }]);
+
+        assert_eq!(&first_node, portabletext_output.get(0).unwrap());
+    }
+
+    #[test]
+    fn support_newlines_in_blocks_with_emphasis() {
+        let markdown_input = "new line can have multiple\n*newlines*";
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        let first_node = BlockNode::default("normal".to_string()).with_children(vec![
+            SpanNode {
+                _type: "span".to_string(),
+                text: "new line can have multiple ".to_string(),
+                marks: vec![],
+            },
+            SpanNode {
+                _type: "span".to_string(),
+                text: "newlines".to_string(),
+                marks: vec![Decorators::Emphasis],
+            },
+        ]);
 
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
     }
@@ -501,18 +610,12 @@ mod tests {
         let mut portabletext_output = vec![];
         portabletext::push_portabletext(&mut portabletext_output, parser);
 
-        let first_node = BlockNode::default("blockquote".to_string()).with_children(vec![
-            SpanNode {
+        let first_node =
+            BlockNode::default("blockquote".to_string()).with_children(vec![SpanNode {
                 _type: "span".to_string(),
-                text: "Okay, pep talk!".to_string(),
+                text: "Okay, pep talk! Hi there".to_string(),
                 marks: vec![],
-            },
-            SpanNode {
-                _type: "span".to_string(),
-                text: "Hi there".to_string(),
-                marks: vec![],
-            },
-        ]);
+            }]);
 
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
     }
