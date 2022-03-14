@@ -1,7 +1,3 @@
-#[doc = include_str!("../README.md")]
-#[cfg(doctest)]
-pub struct ReadmeDoctests;
-
 pub mod portabletext {
     use std::io;
 
@@ -58,7 +54,7 @@ pub mod portabletext {
         pub _type: String,
         pub style: String,
         // strictly not required on ever node, let check if we can optimze this later
-        // tho in rust Vec::with_capacity(0) is zero bytes
+        // tho in rust vec![] is zero bytes
         pub children: Vec<SpanNode>,
 
         // meta on marks
@@ -76,8 +72,8 @@ pub mod portabletext {
             Self {
                 _type: "block".to_string(),
                 style,
-                children: Vec::with_capacity(0),
-                mark_defs: Vec::with_capacity(0),
+                children: vec![],
+                mark_defs: vec![],
                 asset: None,
                 level: None,
                 list_item: None,
@@ -91,7 +87,7 @@ pub mod portabletext {
                 level: Some(level),
                 list_item: Some(list_item),
                 children: Vec::with_capacity(2),
-                mark_defs: Vec::with_capacity(0),
+                mark_defs: vec![],
                 asset: None,
             }
         }
@@ -247,14 +243,14 @@ pub mod portabletext {
                     if !title.is_empty() {
                         last_block.children.push(SpanNode {
                             _type: "image-title".to_owned(),
-                            marks: Vec::with_capacity(0),
+                            marks: vec![],
                             text: title.to_string(),
                         });
                     }
 
                     last_block.children.push(SpanNode {
                         _type: "image-alt".to_owned(),
-                        marks: Vec::with_capacity(0),
+                        marks: vec![],
                         text: alt,
                     });
 
@@ -337,6 +333,10 @@ pub mod portabletext {
     }
 }
 
+#[doc = include_str!("../README.md")]
+#[cfg(doctest)]
+pub struct ReadmeDoctests;
+
 #[cfg(test)]
 mod tests {
     use crate::portabletext;
@@ -355,7 +355,7 @@ mod tests {
         let first_node = BlockNode::default("h1".to_string()).with_children(vec![SpanNode {
             _type: "span".to_string(),
             text: "Hey".to_string(),
-            marks: Vec::with_capacity(0),
+            marks: vec![],
         }]);
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
     }
@@ -371,13 +371,13 @@ mod tests {
         let first_node = BlockNode::default("h1".to_string()).with_children(vec![SpanNode {
             _type: "span".to_string(),
             text: "Hey".to_string(),
-            marks: Vec::with_capacity(0),
+            marks: vec![],
         }]);
 
         let second_node = BlockNode::default("h2".to_string()).with_children(vec![SpanNode {
             _type: "span".to_string(),
             text: "HeyHey".to_string(),
-            marks: Vec::with_capacity(0),
+            marks: vec![],
         }]);
 
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
@@ -395,7 +395,7 @@ mod tests {
         let first_node = BlockNode::default("h3".to_string()).with_children(vec![SpanNode {
             _type: "span".to_string(),
             text: "Hey".to_string(),
-            marks: Vec::with_capacity(0),
+            marks: vec![],
         }]);
 
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
@@ -413,7 +413,7 @@ mod tests {
             SpanNode {
                 _type: "span".to_string(),
                 text: "Hey ".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             },
             SpanNode {
                 _type: "span".to_string(),
@@ -478,13 +478,13 @@ mod tests {
             BlockNode::default("blockquote".to_string()).with_children(vec![SpanNode {
                 _type: "span".to_string(),
                 text: "Okay, pep talk!".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             }]);
 
         let second_node = BlockNode::default("normal".to_string()).with_children(vec![SpanNode {
             _type: "span".to_string(),
             text: "Hi there".to_string(),
-            marks: Vec::with_capacity(0),
+            marks: vec![],
         }]);
 
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
@@ -503,12 +503,12 @@ mod tests {
             SpanNode {
                 _type: "span".to_string(),
                 text: "Okay, pep talk!".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             },
             SpanNode {
                 _type: "span".to_string(),
                 text: "Hi there".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             },
         ]);
 
@@ -527,21 +527,21 @@ mod tests {
             BlockNode::default_list_item(1, ListItemType::Bullit).with_children(vec![SpanNode {
                 _type: "span".to_string(),
                 text: "Item 1".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             }]);
 
         let second_node =
             BlockNode::default_list_item(2, ListItemType::Bullit).with_children(vec![SpanNode {
                 _type: "span".to_string(),
                 text: "Item 1.1".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             }]);
 
         let third_node =
             BlockNode::default_list_item(1, ListItemType::Bullit).with_children(vec![SpanNode {
                 _type: "span".to_string(),
                 text: "Item 2".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             }]);
 
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
@@ -561,21 +561,21 @@ mod tests {
             BlockNode::default_list_item(1, ListItemType::Numbered).with_children(vec![SpanNode {
                 _type: "span".to_string(),
                 text: "Item 1".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             }]);
 
         let second_node =
             BlockNode::default_list_item(2, ListItemType::Numbered).with_children(vec![SpanNode {
                 _type: "span".to_string(),
                 text: "Item 1.1".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             }]);
 
         let third_node =
             BlockNode::default_list_item(1, ListItemType::Numbered).with_children(vec![SpanNode {
                 _type: "span".to_string(),
                 text: "Item 2".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             }]);
 
         assert_eq!(&first_node, portabletext_output.get(0).unwrap());
@@ -601,7 +601,7 @@ mod tests {
             SpanNode {
                 _type: "span".to_string(),
                 text: "This is a ".to_string(),
-                marks: Vec::with_capacity(0),
+                marks: vec![],
             },
             SpanNode {
                 _type: "span".to_string(),
