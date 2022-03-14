@@ -10,6 +10,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct MarkDef {
         pub _key: String,
         pub _type: String,
@@ -18,6 +19,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct Asset {
         pub _ref: String,
         pub src: String,
@@ -25,7 +27,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
-    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "snake_case"))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub enum Decorators {
         Emphasis,
         Strong,
@@ -37,7 +39,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone, Copy)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
-    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "snake_case"))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub enum ListItemType {
         Bullit,
         Numbered,
@@ -45,6 +47,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct SpanNode {
         pub _type: String,
         pub text: String,
@@ -52,6 +55,7 @@ pub mod portabletext {
     }
     #[derive(Debug, PartialEq)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct BlockNode {
         pub _type: String,
         pub style: String,
