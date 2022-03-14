@@ -25,6 +25,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "snake_case"))]
     pub enum Decorators {
         Emphasis,
         Strong,
@@ -36,6 +37,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone, Copy)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "snake_case"))]
     pub enum ListItemType {
         Bullit,
         Numbered,
@@ -678,5 +680,18 @@ mod tests {
         let j = serde_json::to_string(&portabletext_output).unwrap();
 
         assert_eq!(j, "[{\"_type\":\"block\",\"style\":\"normal\",\"children\":[{\"_type\":\"span\",\"text\":\"A running text that then links\",\"marks\":[]}],\"mark_defs\":[],\"level\":null,\"list_item\":null,\"asset\":null}]");
+    }
+
+    #[test]
+    #[cfg(feature = "serde_serialization")]
+    fn lowercased_enums() {
+        assert_eq!(
+            "\"emphasis\"",
+            serde_json::to_string(&Decorators::Emphasis).unwrap()
+        );
+        assert_eq!(
+            "\"numbered\"",
+            serde_json::to_string(&ListItemType::Numbered).unwrap()
+        );
     }
 }
