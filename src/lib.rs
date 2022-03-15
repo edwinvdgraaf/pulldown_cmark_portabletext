@@ -12,7 +12,9 @@ pub mod portabletext {
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct MarkDef {
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "_key"))]
         pub _key: String,
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "_type"))]
         pub _type: String,
         pub href: String,
     }
@@ -21,13 +23,14 @@ pub mod portabletext {
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct Asset {
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "_ref"))]
         pub _ref: String,
         pub src: String,
     }
 
     #[derive(Debug, PartialEq, Clone)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
-    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "lowercase"))]
     pub enum Decorators {
         Emphasis,
         Strong,
@@ -39,7 +42,7 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone, Copy)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
-    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "lowercase"))]
     pub enum ListItemType {
         Bullit,
         Numbered,
@@ -49,6 +52,7 @@ pub mod portabletext {
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct SpanNode {
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "_type"))]
         pub _type: String,
         pub text: String,
         pub marks: Vec<Decorators>,
@@ -57,6 +61,7 @@ pub mod portabletext {
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct BlockNode {
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "_type"))]
         pub _type: String,
         pub style: String,
         // strictly not required on ever node, let check if we can optimze this later
@@ -786,7 +791,7 @@ that is an interesting question. What for one can feel like such a no brainer, c
 
         let j = serde_json::to_string(&portabletext_output).unwrap();
 
-        assert_eq!(j, "[{\"_type\":\"block\",\"style\":\"normal\",\"children\":[{\"_type\":\"span\",\"text\":\"A running text that then links\",\"marks\":[]}],\"mark_defs\":[],\"level\":null,\"list_item\":null,\"asset\":null}]");
+        assert_eq!(j, "[{\"_type\":\"block\",\"style\":\"normal\",\"children\":[{\"_type\":\"span\",\"text\":\"A running text that then links\",\"marks\":[]}],\"markDefs\":[],\"level\":null,\"listItem\":null,\"asset\":null}]");
     }
 
     #[test]
