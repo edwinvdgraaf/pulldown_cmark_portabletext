@@ -151,9 +151,9 @@ pub mod portabletext {
                         self.end_tag(tag)?;
                     }
                     Text(text) => {
-                        let no_marks = self.active_markers.to_vec().len() == 0;
+                        let no_marks = self.active_markers.to_vec().is_empty();
                         if let Some(last_span) = self.last_span() {
-                            if last_span.marks.len() == 0 && no_marks {
+                            if last_span.marks.is_empty() && no_marks {
                                 self.add_text(text)?;
                             } else {
                                 self.add_span(text)?;
@@ -341,17 +341,15 @@ pub mod portabletext {
         }
 
         fn last_span(&mut self) -> Option<&mut SpanNode> {
-            self.last_block()
-                .map(|last_block| {
-                    let last_block_children_length = last_block.children.len();
+            self.last_block().and_then(|last_block| {
+                let last_block_children_length = last_block.children.len();
 
-                    if last_block_children_length == 0 {
-                        return None;
-                    }
+                if last_block_children_length == 0 {
+                    return None;
+                }
 
-                    last_block.children.get_mut(last_block_children_length - 1)
-                })
-                .flatten()
+                last_block.children.get_mut(last_block_children_length - 1)
+            })
         }
 
         fn add_mark_def(&mut self, mark_def: MarkDef) -> io::Result<()> {
