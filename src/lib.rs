@@ -32,6 +32,7 @@ pub mod portabletext {
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     #[cfg_attr(feature = "serde_serialization", serde(rename_all = "lowercase"))]
     pub enum Decorators {
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "em"))]
         Emphasis,
         Strong,
         Strike,
@@ -796,7 +797,7 @@ that is an interesting question. What for one can feel like such a no brainer, c
     #[cfg(feature = "serde_serialization")]
     fn lowercased_enums() {
         assert_eq!(
-            "\"emphasis\"",
+            "\"em\"",
             serde_json::to_string(&Decorators::Emphasis).unwrap()
         );
         assert_eq!(
