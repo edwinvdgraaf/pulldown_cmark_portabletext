@@ -296,9 +296,21 @@ pub mod portabletext {
 
         fn end_tag(&mut self, tag: Tag<'a>) -> io::Result<()> {
             match tag {
-                Tag::Strong => self.mark_stop(),
-                Tag::Emphasis => self.mark_stop(),
-                Tag::Strikethrough => self.mark_stop(),
+                Tag::Strong => self.mark_stop(Decorators::Strong),
+                Tag::Emphasis => self.mark_stop(Decorators::Emphasis),
+                Tag::Strikethrough => self.mark_stop(Decorators::Strike),
+                Tag::Link(_link_type, link_url, _link_title) => {
+                    let mark_def = self
+                        .last_block()
+                        .unwrap()
+                        .mark_defs
+                        .iter()
+                        .find(|d| d.href == link_url.to_string())
+                        .expect(&format!("mark def missing for {}", link_url));
+
+                    let key = String::from(mark_def._key.as_str());
+                    self.mark_stop(Decorators::LinkReference(key))
+                }
                 Tag::List(_options) => {
                     self.active_list_item.pop();
                     self.list_item_level -= 1;
@@ -365,9 +377,9 @@ pub mod portabletext {
             Ok(())
         }
 
-        fn mark_stop(&mut self) -> io::Result<()> {
-            // assumes balanced tags
-            self.active_markers.pop();
+        fn mark_stop(&mut self, decorator: Decorators) -> io::Result<()> {
+            let index = self.active_markers.iter().position(|d| d == &decorator);
+            self.active_markers.remove(index.unwrap());
             Ok(())
         }
     }
@@ -698,7 +710,7 @@ that is an interesting question. What for one can feel like such a no brainer, c
 
     #[test]
     fn links() {
-        let markdown_input = "This is a *[a link](https://github.com)*";
+        let markdown_input = "This is a *[a link](https://github.com)* and more text";
 
         let parser = Parser::new(markdown_input);
         let mut portabletext_output = vec![];
@@ -724,10 +736,70 @@ that is an interesting question. What for one can feel like such a no brainer, c
                     Decorators::LinkReference(mark_def._key.to_owned()),
                 ],
             },
+            SpanNode {
+                _type: "span".to_string(),
+                text: " and more text".to_string(),
+                marks: vec![],
+            },
         ];
 
         assert_eq!("https://github.com", mark_def.href);
         assert_eq!("link", mark_def._type);
+        assert_eq!(children, portabletext_output.get(0).unwrap().children);
+    }
+
+    #[test]
+    fn two_links() {
+        let markdown_input = "First we have some text [and some more links](https://www.rust-lang.org/). After which another sentence is started on [abc](//github.com) to finish.";
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        let mark_def_one = portabletext_output
+            .get(0)
+            .unwrap()
+            .mark_defs
+            .get(0)
+            .unwrap();
+
+        let mark_def_two = portabletext_output
+            .get(0)
+            .unwrap()
+            .mark_defs
+            .get(1)
+            .unwrap();
+
+        let children = vec![
+            SpanNode {
+                _type: "span".to_owned(),
+                text: "First we have some text ".to_owned(),
+                marks: vec![],
+            },
+            SpanNode {
+                _type: "span".to_owned(),
+                text: "and some more links".to_owned(),
+                marks: vec![Decorators::LinkReference(mark_def_one._key.to_owned())],
+            },
+            SpanNode {
+                _type: "span".to_owned(),
+                text: ". After which another sentence is started on ".to_owned(),
+                marks: vec![],
+            },
+            SpanNode {
+                _type: "span".to_owned(),
+                text: "abc".to_owned(),
+                marks: vec![Decorators::LinkReference(mark_def_two._key.to_owned())],
+            },
+            SpanNode {
+                _type: "span".to_owned(),
+                text: " to finish.".to_owned(),
+                marks: vec![],
+            },
+        ];
+
+        assert_eq!("https://www.rust-lang.org/", mark_def_one.href);
+        assert_eq!("link", mark_def_one._type);
         assert_eq!(children, portabletext_output.get(0).unwrap().children);
     }
 
