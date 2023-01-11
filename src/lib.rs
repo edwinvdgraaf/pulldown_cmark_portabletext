@@ -6,7 +6,24 @@ pub mod portabletext {
     use rand::distributions::Alphanumeric;
     use rand::{thread_rng, Rng};
     #[cfg(feature = "serde_serialization")]
-    use serde::Serialize;
+    use serde::{Serialize, Serializer};
+
+    #[cfg(feature = "serde_serialization")]
+    impl Serialize for Decorators {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            match self {
+                Decorators::LinkReference(d) => serializer.serialize_str(d),
+                Decorators::Emphasis => serializer.serialize_str("em"),
+                Decorators::Strong => serializer.serialize_str("strong"),
+                Decorators::Strike => serializer.serialize_str("strike"),
+                Decorators::Underline => serializer.serialize_str("underline"),
+                Decorators::Code => serializer.serialize_str("code"),
+            }
+        }
+    }
 
     #[derive(Debug, PartialEq, Clone)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
@@ -29,10 +46,11 @@ pub mod portabletext {
     }
 
     #[derive(Debug, PartialEq, Clone)]
-    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
-    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "lowercase"))]
+    // #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    // #[cfg_attr(feature = "serde_serialization", serde(rename_all = "lowercase"))]
+    // #[cfg_attr(feature = "serde_serialization", serde(untagged))]
     pub enum Decorators {
-        #[cfg_attr(feature = "serde_serialization", serde(rename = "em"))]
+        // #[cfg_attr(feature = "serde_serialization", serde(rename = "em"))]
         Emphasis,
         Strong,
         Strike,
@@ -875,6 +893,11 @@ that is an interesting question. What for one can feel like such a no brainer, c
         assert_eq!(
             "\"numbered\"",
             serde_json::to_string(&ListItemType::Numbered).unwrap()
+        );
+
+        assert_eq!(
+            "\"a23xas\"",
+            serde_json::to_string(&Decorators::LinkReference("a23xas".to_owned())).unwrap()
         );
     }
 }
