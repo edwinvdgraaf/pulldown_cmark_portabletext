@@ -207,7 +207,7 @@ pub mod portabletext {
                         nest -= 1;
                     }
                     Html(text) | Code(text) | Text(text) => {
-                        buffer.push_str(&text.to_string());
+                        buffer.push_str(&text);
                     }
                     SoftBreak | HardBreak | Rule => {
                         buffer.push(' ');
@@ -324,7 +324,7 @@ pub mod portabletext {
                         .mark_defs
                         .iter()
                         .find(|d| d.href == link_url.to_string())
-                        .expect(&format!("mark def missing for {}", link_url));
+                        .unwrap_or_else(|| panic!("mark def missing for {}", link_url));
 
                     let key = String::from(mark_def._key.as_str());
                     self.mark_stop(Decorators::LinkReference(key))
@@ -340,7 +340,7 @@ pub mod portabletext {
 
         fn add_text(&mut self, text: CowStr<'a>) -> io::Result<()> {
             if let Some(last_span) = self.last_span() {
-                last_span.text += &text.to_string();
+                last_span.text += &text;
             }
             Ok(())
         }
