@@ -16,6 +16,7 @@ pub mod portabletext {
         {
             match self {
                 Decorators::LinkReference(d) => serializer.serialize_str(d),
+                Decorators::AssetReference(a) => serializer.serialize_str(a),
                 Decorators::Emphasis => serializer.serialize_str("em"),
                 Decorators::Strong => serializer.serialize_str("strong"),
                 Decorators::Strike => serializer.serialize_str("strike"),
@@ -57,6 +58,7 @@ pub mod portabletext {
         Underline,
         Code,
         LinkReference(String),
+        AssetReference(String),
     }
 
     #[derive(Debug, PartialEq, Clone, Copy)]
@@ -276,13 +278,12 @@ pub mod portabletext {
                         .collect();
 
                     let asset = Asset {
-                        _ref: key,
+                        _ref: key.to_owned(),
                         src: image_href.to_string(),
                     };
 
                     let alt = self.consume_inner();
                     if let Some(last_block) = self.last_block() {
-                        last_block._type = "image".to_owned();
                         last_block.asset = Some(asset);
                         if !title.is_empty() {
                             last_block.children.push(SpanNode {
@@ -292,8 +293,8 @@ pub mod portabletext {
                             });
                         }
                         last_block.children.push(SpanNode {
-                            _type: "image-alt".to_owned(),
-                            marks: vec![],
+                            _type: "image".to_owned(),
+                            marks: vec![Decorators::AssetReference(key)],
                             text: alt,
                         });
                     }
@@ -832,7 +833,11 @@ that is an interesting question. What for one can feel like such a no brainer, c
         let block = portabletext_output.get(0).unwrap();
         let asset = block.asset.as_ref().unwrap();
 
-        assert_eq!("image", block._type);
+        assert_eq!("block", block._type);
+        assert_eq!(
+            &Decorators::AssetReference(asset._ref.to_owned()),
+            block.children.get(1).unwrap().marks.get(0).unwrap()
+        );
         assert_eq!("/assets/images/san-juan-mountains.jpg", asset.src);
     }
 
@@ -847,13 +852,16 @@ that is an interesting question. What for one can feel like such a no brainer, c
         let block = portabletext_output.get(0).unwrap();
         let asset = block.asset.as_ref().unwrap();
 
-        assert_eq!("image", block._type);
+        assert_eq!("block", block._type);
+        assert_eq!(
+            &Decorators::AssetReference(asset._ref.to_owned()),
+            block.children.get(1).unwrap().marks.get(0).unwrap()
+        );
         assert_eq!("/assets/images/shiprock.jpg", asset.src);
     }
 
     #[test]
     fn running_images() {
-        // It's a little tradeoff - in general in markdown all images are inline
         let markdown_input = "A running text that then links: [![An old rock in the desert](/assets/images/shiprock.jpg \"Shiprock, New Mexico by Beau Rogers\")](https://www.flickr.com/photos/beaurogers/31833779864/in/photolist-Qv3rFw-34mt9F-a9Cmfy-5Ha3Zi-9msKdv-o3hgjr-hWpUte-4WMsJ1-KUQ8N-deshUb-vssBD-6CQci6-8AFCiD-zsJWT-nNfsgB-dPDwZJ-bn9JGn-5HtSXY-6CUhAL-a4UTXB-ugPum-KUPSo-fBLNm-6CUmpy-4WMsc9-8a7D3T-83KJev-6CQ2bK-nNusHJ-a78rQH-nw3NvT-7aq2qf-8wwBso-3nNceh-ugSKP-4mh4kh-bbeeqH-a7biME-q3PtTf-brFpgb-cg38zw-bXMZc-nJPELD-f58Lmo-bXMYG-bz8AAi-bxNtNT-bXMYi-bXMY6-bXMYv) and continues here";
 
         let parser = Parser::new(markdown_input);
@@ -865,7 +873,11 @@ that is an interesting question. What for one can feel like such a no brainer, c
         let image_block = portabletext_output.get(0).unwrap();
         let asset = image_block.asset.as_ref().unwrap();
 
-        assert_eq!("image", image_block._type);
+        assert_eq!("block", image_block._type);
+        assert_eq!(
+            &Decorators::AssetReference(asset._ref.to_owned()),
+            image_block.children.get(2).unwrap().marks.get(0).unwrap()
+        );
         assert_eq!("/assets/images/shiprock.jpg", asset.src);
     }
 
