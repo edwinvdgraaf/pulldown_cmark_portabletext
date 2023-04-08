@@ -1,4 +1,5 @@
 pub mod portabletext {
+    use core::panic;
     use std::io;
 
     use pulldown_cmark::Event::*;
@@ -28,13 +29,95 @@ pub mod portabletext {
 
     #[derive(Debug, PartialEq, Clone)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    pub struct Source {
+        pub srcset: String,
+        pub width: u32,
+        pub height: u32,
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "type"))]
+        pub attr_type: String,
+        pub media: Option<String>,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    pub struct Picture {
+        pub src: String,
+        pub alt: String,
+        pub width: u32,
+        pub height: u32,
+        pub sources: Vec<Source>,
+    }
+
+    pub trait AssetReferenceResolver {
+        fn resolve(&self, reference: String) -> String;
+        fn resolve_picture(&self, reference: String, alt: String) -> Picture;
+    }
+
+    struct IdentityResolver;
+
+    impl AssetReferenceResolver for IdentityResolver {
+        fn resolve(&self, reference: String) -> String {
+            reference
+        }
+
+        fn resolve_picture(&self, reference: String, alt: String) -> Picture {
+            Picture {
+                src: reference,
+                alt,
+                width: 999,
+                height: 999,
+                sources: vec![],
+            }
+        }
+    }
+
+    pub struct Options<'a> {
+        pub asset_resolver: &'a dyn AssetReferenceResolver,
+    }
+
+    impl Default for Options<'_> {
+        fn default() -> Self {
+            Self {
+                asset_resolver: &IdentityResolver {},
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
-    pub struct MarkDef {
+    pub struct MarkDefLink {
         #[cfg_attr(feature = "serde_serialization", serde(rename = "_key"))]
         pub _key: String,
         #[cfg_attr(feature = "serde_serialization", serde(rename = "_type"))]
         pub _type: String,
         pub href: String,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
+    pub struct MarkDefImage {
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "_key"))]
+        pub _key: String,
+        #[cfg_attr(feature = "serde_serialization", serde(rename = "_type"))]
+        pub _type: String,
+        pub src: String,
+        pub picture: Picture,
+        #[cfg_attr(
+            feature = "serde_serialization",
+            serde(skip_serializing_if = "Option::is_none")
+        )]
+        pub caption: Option<String>,
+    }
+
+    #[derive(Debug, PartialEq, Clone)]
+    #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
+    #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
+    #[cfg_attr(feature = "serde_serialization", serde(untagged))]
+    pub enum MarkDef {
+        Link(MarkDefLink),
+        Image(MarkDefImage),
     }
 
     #[derive(Debug, PartialEq, Clone)]
@@ -47,11 +130,7 @@ pub mod portabletext {
     }
 
     #[derive(Debug, PartialEq, Clone)]
-    // #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
-    // #[cfg_attr(feature = "serde_serialization", serde(rename_all = "lowercase"))]
-    // #[cfg_attr(feature = "serde_serialization", serde(untagged))]
     pub enum Decorators {
-        // #[cfg_attr(feature = "serde_serialization", serde(rename = "em"))]
         Emphasis,
         Strong,
         Strike,
@@ -78,24 +157,50 @@ pub mod portabletext {
         pub text: String,
         pub marks: Vec<Decorators>,
     }
+
     #[derive(Debug, PartialEq)]
     #[cfg_attr(feature = "serde_serialization", derive(Serialize))]
     #[cfg_attr(feature = "serde_serialization", serde(rename_all = "camelCase"))]
     pub struct BlockNode {
         #[cfg_attr(feature = "serde_serialization", serde(rename = "_type"))]
         pub _type: String,
-        pub style: String,
-        // strictly not required on ever node, let check if we can optimze this later
-        // tho in rust vec![] is zero bytes
+        #[cfg_attr(
+            feature = "serde_serialization",
+            serde(skip_serializing_if = "Option::is_none")
+        )]
+        pub style: Option<String>,
+
+        #[cfg_attr(
+            feature = "serde_serialization",
+            serde(skip_serializing_if = "Vec::is_empty")
+        )]
         pub children: Vec<SpanNode>,
 
         // meta on marks
         pub mark_defs: Vec<MarkDef>,
         // list items
+        #[cfg_attr(
+            feature = "serde_serialization",
+            serde(skip_serializing_if = "Option::is_none")
+        )]
         pub level: Option<usize>,
+        #[cfg_attr(
+            feature = "serde_serialization",
+            serde(skip_serializing_if = "Option::is_none")
+        )]
         pub list_item: Option<ListItemType>,
 
-        pub asset: Option<Asset>,
+        #[cfg_attr(
+            feature = "serde_serialization",
+            serde(skip_serializing_if = "Option::is_none")
+        )]
+        pub language: Option<String>,
+
+        #[cfg_attr(
+            feature = "serde_serialization",
+            serde(skip_serializing_if = "Option::is_none")
+        )]
+        pub code: Option<String>,
     }
 
     // TODO: split this into multiple types
@@ -103,10 +208,24 @@ pub mod portabletext {
         pub fn default(style: String) -> Self {
             Self {
                 _type: "block".to_string(),
-                style,
+                style: Some(style),
                 children: vec![],
                 mark_defs: vec![],
-                asset: None,
+                language: None,
+                code: None,
+                level: None,
+                list_item: None,
+            }
+        }
+
+        pub fn code(language: String, code: String) -> Self {
+            Self {
+                _type: "code".to_string(),
+                style: None,
+                children: vec![],
+                mark_defs: vec![],
+                language: Some(language),
+                code: Some(code),
                 level: None,
                 list_item: None,
             }
@@ -115,12 +234,13 @@ pub mod portabletext {
         pub fn default_list_item(level: usize, list_item: ListItemType) -> Self {
             Self {
                 _type: "block".to_string(),
-                style: "normal".to_string(),
+                style: Some("normal".to_string()),
                 level: Some(level),
                 list_item: Some(list_item),
                 children: Vec::with_capacity(2),
                 mark_defs: vec![],
-                asset: None,
+                language: None,
+                code: None,
             }
         }
 
@@ -137,15 +257,17 @@ pub mod portabletext {
         active_list_item: Vec<ListItemType>,
         list_item_level: usize,
         active_markers: Vec<Decorators>,
+        options: Options<'a>,
     }
     impl<'a, I> PortabletextWriter<'a, I>
     where
         I: Iterator<Item = Event<'a>>,
     {
-        fn new(iter: I, writer: &'a mut Vec<BlockNode>) -> Self {
+        fn new(iter: I, writer: &'a mut Vec<BlockNode>, options: Options<'a>) -> Self {
             Self {
                 iter,
                 writer,
+                options,
                 open_block: false,
                 active_markers: Vec::with_capacity(3),
                 active_list_item: Vec::with_capacity(5),
@@ -183,14 +305,17 @@ pub mod portabletext {
                             self.add_span(text)?;
                         }
                     }
-
+                    Code(code) => {
+                        self.mark_start(Decorators::Code)?;
+                        self.add_span(code)?;
+                        self.mark_stop(Decorators::Code)?;
+                    }
                     SoftBreak => {
                         if let Some(last_span) = self.last_span() {
                             last_span.text += " ";
                         }
                     }
-                    Code(_) | Html(_) | FootnoteReference(_) | Rule | HardBreak
-                    | TaskListMarker(_) => {}
+                    Html(_) | FootnoteReference(_) | Rule | HardBreak | TaskListMarker(_) => {}
                 }
             }
             Ok(())
@@ -231,12 +356,14 @@ pub mod portabletext {
                     }
                 }
                 Tag::BlockQuote => self.write(BlockNode::default("blockquote".to_string())),
-                Tag::CodeBlock(CodeBlockKind::Fenced(_syntax)) => {
-                    // todo: add mark def
-                    self.write(BlockNode::default("code".to_string()))
+                Tag::CodeBlock(CodeBlockKind::Fenced(syntax)) => {
+                    let code = self.consume_inner();
+                    self.write(BlockNode::code(syntax.into_string(), code))
                 }
                 Tag::CodeBlock(CodeBlockKind::Indented) => {
-                    self.write(BlockNode::default("code".to_string()))
+                    let plain_text: String = "plain_text".to_owned();
+                    let code = self.consume_inner();
+                    self.write(BlockNode::code(plain_text, code))
                 }
                 Tag::Heading(level) => {
                     let styling = format!("h{}", level);
@@ -262,11 +389,12 @@ pub mod portabletext {
                         .take(12)
                         .map(char::from)
                         .collect();
-                    let mark_def = MarkDef {
+                    let mark_def = MarkDef::Link(MarkDefLink {
                         _type: "link".to_owned(),
                         _key: key.to_owned(),
                         href: link_href.to_string(),
-                    };
+                    });
+
                     self.add_mark_def(mark_def).unwrap();
                     self.mark_start(Decorators::LinkReference(key))
                 }
@@ -277,26 +405,32 @@ pub mod portabletext {
                         .map(char::from)
                         .collect();
 
-                    let asset = Asset {
-                        _ref: key.to_owned(),
-                        src: image_href.to_string(),
-                    };
-
                     let alt = self.consume_inner();
+                    let src = self.options.asset_resolver.resolve(image_href.to_string());
+                    let picture = self
+                        .options
+                        .asset_resolver
+                        .resolve_picture(image_href.to_string(), alt.to_owned());
+
                     if let Some(last_block) = self.last_block() {
-                        last_block.asset = Some(asset);
-                        if !title.is_empty() {
-                            last_block.children.push(SpanNode {
-                                _type: "image-title".to_owned(),
-                                marks: Vec::with_capacity(0),
-                                text: title.to_string(),
-                            });
-                        }
-                        last_block.children.push(SpanNode {
+                        let caption = if !title.is_empty() {
+                            Some(title.to_string())
+                        } else {
+                            None
+                        };
+
+                        last_block.mark_defs.push(MarkDef::Image(MarkDefImage {
+                            _key: key.to_owned(),
                             _type: "image".to_owned(),
-                            marks: vec![Decorators::AssetReference(key)],
-                            text: alt,
-                        });
+                            src,
+                            picture,
+                            caption,
+                        }));
+
+                        self.mark_start(Decorators::AssetReference(key.to_owned()))?;
+                        self.add_span_with_type(alt.into(), "figure".to_owned())?;
+                        // No end tag emited for image so stop marker
+                        return self.mark_stop(Decorators::AssetReference(key));
                     }
 
                     Ok(())
@@ -324,10 +458,20 @@ pub mod portabletext {
                         .unwrap()
                         .mark_defs
                         .iter()
-                        .find(|d| d.href == link_url.to_string())
+                        .find(|d| {
+                            if let MarkDef::Link(l) = d {
+                                l.href == link_url.to_string()
+                            } else {
+                                false
+                            }
+                        })
                         .unwrap_or_else(|| panic!("mark def missing for {}", link_url));
 
-                    let key = String::from(mark_def._key.as_str());
+                    let key = match mark_def {
+                        MarkDef::Link(l) => l._key.as_str().to_owned(),
+                        _ => panic!("Cannot find key for link"),
+                    };
+
                     self.mark_stop(Decorators::LinkReference(key))
                 }
                 Tag::List(_options) => {
@@ -407,7 +551,19 @@ pub mod portabletext {
     where
         I: Iterator<Item = Event<'a>>,
     {
-        PortabletextWriter::new(parser, output).run().unwrap();
+        push_portabletext_with_opts(output, parser, Options::default())
+    }
+
+    pub fn push_portabletext_with_opts<'a, I>(
+        output: &'a mut Vec<BlockNode>,
+        parser: I,
+        options: Options<'a>,
+    ) where
+        I: Iterator<Item = Event<'a>>,
+    {
+        PortabletextWriter::new(parser, output, options)
+            .run()
+            .unwrap();
     }
 }
 
@@ -417,7 +573,7 @@ pub struct ReadmeDoctests;
 
 #[cfg(test)]
 mod tests {
-    use crate::portabletext;
+    use crate::portabletext::{self, MarkDef};
     use crate::portabletext::{BlockNode, Decorators, ListItemType, SpanNode};
     use pulldown_cmark::Parser;
     #[cfg(feature = "serde_serialization")]
@@ -735,12 +891,17 @@ that is an interesting question. What for one can feel like such a no brainer, c
         let mut portabletext_output = vec![];
         portabletext::push_portabletext(&mut portabletext_output, parser);
 
-        let mark_def = portabletext_output
+        let mark_def_one = match portabletext_output
             .get(0)
             .unwrap()
             .mark_defs
             .get(0)
-            .unwrap();
+            .unwrap()
+        {
+            MarkDef::Link(a) => a,
+            _ => panic!(),
+        };
+
         let children = vec![
             SpanNode {
                 _type: "span".to_string(),
@@ -752,7 +913,7 @@ that is an interesting question. What for one can feel like such a no brainer, c
                 text: "a link".to_string(),
                 marks: vec![
                     Decorators::Emphasis,
-                    Decorators::LinkReference(mark_def._key.to_owned()),
+                    Decorators::LinkReference(mark_def_one._key.to_owned()),
                 ],
             },
             SpanNode {
@@ -762,8 +923,8 @@ that is an interesting question. What for one can feel like such a no brainer, c
             },
         ];
 
-        assert_eq!("https://github.com", mark_def.href);
-        assert_eq!("link", mark_def._type);
+        assert_eq!("https://github.com", mark_def_one.href);
+        assert_eq!("link", mark_def_one._type);
         assert_eq!(children, portabletext_output.get(0).unwrap().children);
     }
 
@@ -775,19 +936,27 @@ that is an interesting question. What for one can feel like such a no brainer, c
         let mut portabletext_output = vec![];
         portabletext::push_portabletext(&mut portabletext_output, parser);
 
-        let mark_def_one = portabletext_output
+        let mark_def_one = match portabletext_output
             .get(0)
             .unwrap()
             .mark_defs
             .get(0)
-            .unwrap();
+            .unwrap()
+        {
+            MarkDef::Link(a) => a,
+            _ => panic!(),
+        };
 
-        let mark_def_two = portabletext_output
+        let mark_def_two = match portabletext_output
             .get(0)
             .unwrap()
             .mark_defs
             .get(1)
-            .unwrap();
+            .unwrap()
+        {
+            MarkDef::Link(a) => a,
+            _ => panic!(),
+        };
 
         let children = vec![
             SpanNode {
@@ -831,14 +1000,17 @@ that is an interesting question. What for one can feel like such a no brainer, c
         portabletext::push_portabletext(&mut portabletext_output, parser);
 
         let block = portabletext_output.get(0).unwrap();
-        let asset = block.asset.as_ref().unwrap();
 
-        assert_eq!("block", block._type);
-        assert_eq!(
-            &Decorators::AssetReference(asset._ref.to_owned()),
-            block.children.get(1).unwrap().marks.get(0).unwrap()
-        );
-        assert_eq!("/assets/images/san-juan-mountains.jpg", asset.src);
+        if let MarkDef::Image(asset) = block.mark_defs.get(0).as_ref().unwrap() {
+            assert_eq!("block", block._type);
+            assert_eq!(
+                &Decorators::AssetReference(asset._key.to_owned()),
+                block.children.get(0).unwrap().marks.get(0).unwrap()
+            );
+            assert_eq!("/assets/images/san-juan-mountains.jpg", asset.src);
+        } else {
+            panic!()
+        };
     }
 
     #[test]
@@ -850,14 +1022,28 @@ that is an interesting question. What for one can feel like such a no brainer, c
         portabletext::push_portabletext(&mut portabletext_output, parser);
 
         let block = portabletext_output.get(0).unwrap();
-        let asset = block.asset.as_ref().unwrap();
 
-        assert_eq!("block", block._type);
-        assert_eq!(
-            &Decorators::AssetReference(asset._ref.to_owned()),
-            block.children.get(1).unwrap().marks.get(0).unwrap()
-        );
-        assert_eq!("/assets/images/shiprock.jpg", asset.src);
+        if let MarkDef::Link(link) = block.mark_defs.get(0).as_ref().unwrap() {
+            assert_eq!("block", block._type);
+            assert_eq!(
+                &Decorators::LinkReference(link._key.to_owned()),
+                block.children.get(0).unwrap().marks.get(0).unwrap()
+            );
+            assert_eq!("https://www.flickr.com/photos/beaurogers/31833779864/in/photolist-Qv3rFw-34mt9F-a9Cmfy-5Ha3Zi-9msKdv-o3hgjr-hWpUte-4WMsJ1-KUQ8N-deshUb-vssBD-6CQci6-8AFCiD-zsJWT-nNfsgB-dPDwZJ-bn9JGn-5HtSXY-6CUhAL-a4UTXB-ugPum-KUPSo-fBLNm-6CUmpy-4WMsc9-8a7D3T-83KJev-6CQ2bK-nNusHJ-a78rQH-nw3NvT-7aq2qf-8wwBso-3nNceh-ugSKP-4mh4kh-bbeeqH-a7biME-q3PtTf-brFpgb-cg38zw-bXMZc-nJPELD-f58Lmo-bXMYG-bz8AAi-bxNtNT-bXMYi-bXMY6-bXMYv", link.href);
+        } else {
+            panic!()
+        };
+
+        if let MarkDef::Image(asset) = block.mark_defs.get(1).as_ref().unwrap() {
+            assert_eq!("block", block._type);
+            assert_eq!(
+                &Decorators::AssetReference(asset._key.to_owned()),
+                block.children.get(0).unwrap().marks.get(1).unwrap()
+            );
+            assert_eq!("/assets/images/shiprock.jpg", asset.src);
+        } else {
+            panic!()
+        };
     }
 
     #[test]
@@ -871,14 +1057,47 @@ that is an interesting question. What for one can feel like such a no brainer, c
         assert_eq!(1, portabletext_output.len());
 
         let image_block = portabletext_output.get(0).unwrap();
-        let asset = image_block.asset.as_ref().unwrap();
 
-        assert_eq!("block", image_block._type);
+        if let MarkDef::Image(asset) = image_block.mark_defs.get(1).as_ref().unwrap() {
+            assert_eq!("block", image_block._type);
+            assert_eq!(
+                &Decorators::AssetReference(asset._key.to_owned()),
+                image_block.children.get(1).unwrap().marks.get(1).unwrap()
+            );
+            assert_eq!("/assets/images/shiprock.jpg", asset.src);
+        } else {
+            panic!()
+        };
+    }
+
+    #[test]
+    fn inline_code() {
+        let markdown_input = "A piece of inline `code snippet` marked by a backtick";
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        let block = portabletext_output.get(0).unwrap();
+
         assert_eq!(
-            &Decorators::AssetReference(asset._ref.to_owned()),
-            image_block.children.get(2).unwrap().marks.get(0).unwrap()
+            block.children.get(1).unwrap().marks.get(0).unwrap(),
+            &Decorators::Code
         );
-        assert_eq!("/assets/images/shiprock.jpg", asset.src);
+    }
+
+    #[test]
+    fn fenced_code_with_lang() {
+        let markdown_input = "```rust\nprintln!(\"{:?}\", my_var)\n```";
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+
+        let block = portabletext_output.get(0).unwrap();
+
+        assert_eq!(block.language.as_ref().unwrap(), "rust");
+        assert_eq!(block.code.as_ref().unwrap(), "println!(\"{:?}\", my_var)\n")
     }
 
     #[test]
@@ -892,7 +1111,7 @@ that is an interesting question. What for one can feel like such a no brainer, c
 
         let j = serde_json::to_string(&portabletext_output).unwrap();
 
-        assert_eq!(j, "[{\"_type\":\"block\",\"style\":\"normal\",\"children\":[{\"_type\":\"span\",\"text\":\"A running text that then links\",\"marks\":[]}],\"markDefs\":[],\"level\":null,\"listItem\":null,\"asset\":null}]");
+        assert_eq!(j, "[{\"_type\":\"block\",\"style\":\"normal\",\"children\":[{\"_type\":\"span\",\"text\":\"A running text that then links\",\"marks\":[]}],\"markDefs\":[]}]");
     }
 
     #[test]
