@@ -312,7 +312,11 @@ pub mod portabletext {
                     }
                     SoftBreak => {
                         if let Some(last_span) = self.last_span() {
-                            last_span.text += " ";
+                            if last_span.marks.is_empty() {
+                                last_span.text += " ";
+                            } else {
+                                self.add_span(" ".into())?;
+                            }
                         }
                     }
                     Html(_) | FootnoteReference(_) | Rule | HardBreak | TaskListMarker(_) => {}
@@ -987,6 +991,50 @@ that is an interesting question. What for one can feel like such a no brainer, c
         ];
 
         assert_eq!("https://www.rust-lang.org/", mark_def_one.href);
+        assert_eq!("link", mark_def_one._type);
+        assert_eq!(children, portabletext_output.get(0).unwrap().children);
+    }
+
+    #[test]
+    fn link_at_the_start() {
+        let markdown_input = r#"
+- [EWD340 - The Humble Programmer](https://www.cs.utexas.edu/~EWD/transcriptions/EWD03xx/EWD340.html)
+  Great essay worth a read
+        "#;
+
+        let parser = Parser::new(markdown_input);
+        let mut portabletext_output = vec![];
+        portabletext::push_portabletext(&mut portabletext_output, parser);
+        println!("{:?}", portabletext_output);
+
+        let mark_def_one = match portabletext_output
+            .get(0)
+            .unwrap()
+            .mark_defs
+            .get(0)
+            .unwrap()
+        {
+            MarkDef::Link(a) => a,
+            _ => panic!(),
+        };
+
+        let children = vec![
+            SpanNode {
+                _type: "span".to_string(),
+                text: "EWD340 - The Humble Programmer".to_string(),
+                marks: vec![Decorators::LinkReference(mark_def_one._key.to_owned())],
+            },
+            SpanNode {
+                _type: "span".to_string(),
+                text: " Great essay worth a read".to_string(),
+                marks: vec![],
+            },
+        ];
+
+        assert_eq!(
+            "https://www.cs.utexas.edu/~EWD/transcriptions/EWD03xx/EWD340.html",
+            mark_def_one.href
+        );
         assert_eq!("link", mark_def_one._type);
         assert_eq!(children, portabletext_output.get(0).unwrap().children);
     }
